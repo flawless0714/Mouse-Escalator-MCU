@@ -10,15 +10,28 @@
 #define TIMER3_RELOAD -SYSCLK/TIMER_PRESCALER/103
 #define TIMER2_RELOAD AUX2
 
+#define TIMER_RELOAD100MS (0xFFFF - 48980)
+
 sfr16 TMR2RL = 0xCA;
 sfr16 TMR2 = 0xCC;
 sfr16 TMR3RL = 0x92;
 sfr16 TMR3 = 0x94;
-
+sbit IR9 = P0^3;
+sbit IR8 = P0^7;
+sbit IR7 = P1^0;
+sbit IR6 = P1^1;
+sbit IR5 = P1^2;
+sbit IR4 = P1^3;
+sbit IR3 = P1^4;
+sbit IR2 = P1^5;
+sbit IR1 = P1^6;
+//sbit IR0 = P1^7;
 sbit PULSE_38K = P2^0;
-
+//sbit DEBUG = P1^4;
+unsigned int i;
 unsigned short speed;
 unsigned short speedcount = 0;
+unsigned char uartdata[6];
 
 void SYSCLK_Init (void);
 void IDA0_Init (void);
@@ -42,6 +55,7 @@ void main (void)
 	EA = 1;
 	while(1)
 	{
+        
 		unsigned char read = _getkey();
 		if(state == 0)
 		{
@@ -65,7 +79,9 @@ void main (void)
 			IDA0L = read;
 			state = 0;
 		}
-	}
+        //for(i= 0; i < 100000; i++)
+        //DEBUG = ~DEBUG;
+    }
 }
 
 void UART0_Init (void)     
@@ -85,9 +101,17 @@ void PORT_Init (void)
 	P0SKIP = 0x02;
 	XBR0 = 0x01;
 	XBR1 = 0x42;
+    /*
 	P0MDOUT |= 0xC0;
     P1MDOUT = 0xFF;
 	P2MDOUT |= 0x01;
+    */
+    P0MDIN	|= 0x88;
+	P1MDIN |= 0xFF;
+    
+    //P1SKIP &= 0xEF;
+	
+    P2MDOUT |= 0x01;
 }
 
 void SYSCLK_Init (void)
@@ -148,7 +172,7 @@ void Timer2_ISR (void) interrupt 5
 //-----------------------------------------------------------------------------
 void Timer3_Init(void)
 {
-   TMR3RL = TIMER3_RELOAD;          // Reload value to be used in Timer3
+   TMR3RL = TIMER_TICKS_PER_MS;          // Reload value to be used in Timer3
    TMR3 = TMR3RL;                   // Init the Timer3 register
 
    TMR3CN = 0x04;                   // Enable Timer3 in auto-reload mode
@@ -169,12 +193,31 @@ void Timer3_ISR (void) interrupt 14
 			speed = speedcount;
 			speedcount = 0;
 		}
+        /*
 		putchar(0xFF); // packet start byte 0
 		putchar(0xFF); // packet start byte 1
 		putchar((speed >> 8) & 0xFF); //speed value high byte
 		putchar(speed & 0xFF); //speed value low byte
-		putchar((((~P0^7) << 1) & 0x02) | ((~P0^6) & 0x01));
-		putchar(~P1);
+        //putchar(0xCA);
+        //putchar(0xDE);
+		//putchar((((P0^7) << 1) & 0x02) | ((P0^3) & 0x01));
+		putchar(P1^7 & 0x02);
+        */
+        //uartdata[4] = (((IR9 << 1) & 0x02) | ((IR8) & 0x01));
+        uartdata[0] = 0xFF;
+        uartdata[1] = 0xFF;
+        uartdata[2] = ((speed >> 8) & 0xFF);
+        uartdata[3] = (speed & 0xFF); 
+        
+        uartdata[4] = (/*(IR9 & 0xFF) << 1 |*/ (IR8 & 0xFF));
+        uartdata[5] = ((IR9 & 0xFF) << 7 |  (IR1 & 0xFF) << 6 | (IR2 & 0xFF) << 5 | (IR3 & 0xFF) << 4 | (IR4 & 0xFF) << 3 | (IR5 & 0xFF) << 2 | (IR6 & 0xFF) << 1 | (IR7 & 0xFF) );//(P1);
+        
+        for(i = 0; i < 6; i++)
+		{
+			while (!TI0);
+			TI0 = 0;
+			SBUF0 = uartdata[i];
+		}
 	}
 	TMR3CN &= ~(1 << 7);
 }	
